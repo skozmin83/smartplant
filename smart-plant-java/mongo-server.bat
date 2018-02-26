@@ -1,0 +1,1 @@
+c:\tools\mongodb\server\3.4\bin\mongod.exe --dbpath C:\tools\mongodb\devices
