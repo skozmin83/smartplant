@@ -4,6 +4,7 @@ extern "C" {
 
 #include "MqttControlCenter.cpp"
 #include "DhtTemperatureSensor.cpp"
+#include "ConnectorWifiOTA.cpp"
 #include "HX711.h"
 
 #define PIN_DOUT            D2
@@ -19,21 +20,21 @@ char macAddress[18] = {0};
 const char *ssid = "E7EA3E";
 const char *password = "79296267";
 
-//const char *mqttServer = "raspberrypi";
-//const char *mqttUsername = "user";
-//const char *mqttPassword = "yourpassword";
-const char *mqttServer = "sergeypc";
+const char *mqttServer = "raspberrypi";
 const char *mqttUsername = "user";
 const char *mqttPassword = "yourpassword";
+//const char *mqttServer = "sergeypc";
+//const char *mqttUsername = "user";
+//const char *mqttPassword = "yourpassword";
 
 char *mqttPubBase = (char *) "/devices";
 char *mqttSubBase = (char *) "/control";
 
-HX711 scale(PIN_DOUT, PIN_CLK);
 float calibration_factor = -89070;
+IConnector *connector;
 IControlCenter *center;
-DhtTemperatureSensor temperatureSensor = DhtTemperatureSensor(PIN_TEMPERATURE, DHT22, (char *) "dht22");
-
+DhtTemperatureSensor *temperatureSensor;
+HX711 *massSensor;
 
 uint32_t lastPublishTime = 0;
 
@@ -49,14 +50,29 @@ void setup() {
     pinMode(PIN_BUTTON, INPUT);
     digitalWrite(BUILTIN_LED, HIGH);
     Serial.begin(115200);
+//
+//    while (!Serial) {
+//        ; // wait for serial port to connect. Needed for native USB
+//    }
+//    delay(1000);
     Serial.println("Start: ");
-
     Serial.print("ESP.getFreeSketchSpace(): ");
     Serial.println(ESP.getFreeSketchSpace());
+//    try {
+        connector = new ConnectorWifiOTA(ssid, password);
+        center = new MqttControlCenter(readMac(macAddress), mqttServer, 1883, mqttUsername, mqttPassword, connector);
+        temperatureSensor = new DhtTemperatureSensor(PIN_TEMPERATURE, DHT22, (char *) "dht22");
+        massSensor = new HX711(PIN_DOUT, PIN_CLK);
 
-    scale.set_scale(calibration_factor); //Adjust to this calibration factor
-    center = new MqttControlCenter(readMac(macAddress), ssid, password, mqttServer, 1883, mqttUsername, mqttPassword);
-    temperatureSensor.init();
+        temperatureSensor->init();
+        connector->init();
+        massSensor->set_scale(calibration_factor); //Adjust to this calibration factor
+//    } catch (...) {
+//         todo add catch and reload
+//        Serial.println("Error during init. ");
+//        delay(500);
+//        ESP.restart();
+//    }
 }
 
 void loop() {
@@ -65,8 +81,8 @@ void loop() {
 //        uint32_t chipId = ESP.getChipId();
 //        uint32_t flashChipId = ESP.getFlashChipId();
         float voltage = ESP.getVcc() / 1023.0f;
-        float mass = scale.get_units(10);
-        ITemperatureResult &temperatureResult = temperatureSensor.read();
+        float mass = massSensor->get_units(10);
+        ITemperatureResult &temperatureResult = temperatureSensor->read();
 
         String pubStatus = String("Publish status: ");
         boolean status = center->publish(mqttPubBase,
@@ -86,7 +102,9 @@ void loop() {
         if (HIGH == buttonStatus) {
             Serial.print("Reset tare. ");
             Serial.println(buttonStatus);
-            scale.tare(10);
+            lastPublishTime = 0;
+            massSensor->tare(10);
         }
     }
+    connector->loop();
 }

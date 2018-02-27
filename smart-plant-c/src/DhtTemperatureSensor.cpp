@@ -1,5 +1,5 @@
 #include "ITemperatureSensor.h"
-#include<DHT.h>
+#include <DHT.h>
 
 #ifndef PLANT_TEMPERATURE_SENSOR_DHT
 #define PLANT_TEMPERATURE_SENSOR_DHT

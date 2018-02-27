@@ -23,19 +23,19 @@
 #include "IControlCenter.h"
 #include "SerialPublisher.cpp"
 #include "MqttDataJsonPublisher.cpp"
+#include "IConnector.h"
 #include <cstdlib> // for malloc and free
 
 class MqttControlCenter : public IControlCenter {
 private:
     const char *connectionId;
-    const char *ssid;
-    const char *wifiPassword;
     const char *mqttUsername;
     const char *mqttPassword;
 
     WiFiClient wifiClient;
     PubSubClient mqttClient;
     MqttDataJsonPublisher publisher;
+    IConnector *connector;
 
     char *topic;
     char *controllerId;
@@ -46,26 +46,23 @@ private:
     float voltage;
 public:
     MqttControlCenter(const char *connectionId,
-                      const char *ssid,
-                      const char *wifiPassword,
                       const char *mqttServer,
                       uint16_t mqttPort,
                       const char *mqttUsername,
-                      const char *mqttPassword
+                      const char *mqttPassword,
+                      IConnector *connectorIn
     ) :
             connectionId(connectionId),
-            ssid(ssid),
-            wifiPassword(wifiPassword),
             mqttUsername(mqttUsername),
             mqttPassword(mqttPassword),
             wifiClient(WiFiClient()),
             mqttClient(PubSubClient(wifiClient)),
             publisher(MqttDataJsonPublisher(mqttClient)) {
         mqttClient.setServer(mqttServer, mqttPort);
+        connector = connectorIn;
     }
 
     void *operator new(size_t size) { return malloc(size); }
-
     void operator delete(void *ptr) { free(ptr); }
 
     IDataPublisher &getPublisher() override {
@@ -133,13 +130,7 @@ public:
     }
 
     void reconnect() {
-        while (WiFi.status() != WL_CONNECTED) {
-            digitalWrite(LED_BUILTIN, LOW);
-            delay(500);
-            digitalWrite(LED_BUILTIN, HIGH);
-            setup_wifi();
-        }
-
+        connector->connect();
         while (!mqttClient.connected()) {
             Serial.print("Attempting MQTT connection...");
             //if (client.connect("ESP8266_Client", mqtt_username, mqtt_password)) {
@@ -158,31 +149,12 @@ public:
         }
     }
 
-    void setup_wifi() {
-        delay(10);
-        Serial.println();
-        Serial.print("Connecting to ");
-        Serial.println(ssid);
-
-        WiFi.begin(ssid, wifiPassword);
-
-        while (WiFi.status() != WL_CONNECTED) {
-            delay(500);
-            Serial.print(".");
-        }
-
-        Serial.println("");
-        Serial.println("WiFi connected");
-        Serial.println("IP address: ");
-        Serial.println(WiFi.localIP());
-    }
-
     void disconnect() {
         Serial.println("Closing MQTT connection...");
         mqttClient.disconnect();
         mqttClient.loop();
         Serial.println("Closing WiFi connection...");
-        WiFi.disconnect();
+        connector->disconnect();
     }
 };
 
