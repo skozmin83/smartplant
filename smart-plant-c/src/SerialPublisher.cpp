@@ -2,6 +2,7 @@
 #define SERIAL_PUBLISHER
 
 #include "IDataPublisher.h"
+#include "IControlCenter.h"
 #include <Arduino.h>
 
 class SerialPublisher : public IDataPublisher {
@@ -9,16 +10,16 @@ public:
     SerialPublisher() {
         Serial.begin(115200);
     }
-    boolean publish(char *baseTopic, char *controllerId, char *sensorId, float mass, float voltage, float d, float d1) {
-        if (isnan(mass)) {
+    boolean publish(CenterData *data) override {
+        if (isnan(data->mass)) {
             Serial.print(": controller: ");
-            Serial.print(controllerId);
+            Serial.print(data->controllerId);
             Serial.print(": sensor: ");
-            Serial.print(sensorId);
+            Serial.print(data->sensorId);
             Serial.print(": mass: ");
-            Serial.print(mass);
+            Serial.print(data->mass);
             Serial.print(": Voltage: ");
-            Serial.print(voltage);
+            Serial.print(data->voltage);
         } else {
             Serial.println("Failed to read from sensor.");
         }

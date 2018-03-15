@@ -6,11 +6,11 @@
 #define DATA_PUBLISHER_H
 
 #include <Arduino.h>
+#include "CentralData.h"
 
 class IDataPublisher {
 public:
-    virtual boolean
-    publish(char *baseTopic, char *controllerId, char *sensorId, float mass, float voltage, float d, float d1) = 0;
+    virtual boolean publish(CenterData *data) = 0;
 private:
 };
 

@@ -36,9 +36,8 @@ public:
         Serial.println("Closing WiFi connection...");
         WiFi.disconnect();
     }
-
+    void loop() override {}
     void init() override {}
-
 private:
     void setup_wifi() {
         delay(10);

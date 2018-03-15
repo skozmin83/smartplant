@@ -36,14 +36,7 @@ private:
     PubSubClient mqttClient;
     MqttDataJsonPublisher publisher;
     IConnector *connector;
-
-    char *topic;
-    char *controllerId;
-    char *sensorId;
-    float temperature;
-    float humidity;
-    float mass;
-    float voltage;
+    CenterData *data;
 public:
     MqttControlCenter(const char *connectionId,
                       const char *mqttServer,
@@ -76,21 +69,8 @@ public:
         return (IDataPublisher &) publisher;
     };
 
-    boolean publish(char *baseTopic,
-                    char *controllerId,
-                    char *sensorId,
-                    float temperature,
-                    float humidity,
-                    float mass,
-                    float voltage) override {
-        // todo use command pattern here
-        this->topic = baseTopic;
-        this->controllerId = controllerId;
-        this->sensorId = sensorId;
-        this->temperature = temperature;
-        this->humidity = humidity;
-        this->mass = mass;
-        this->voltage = voltage;
+    boolean publish(CenterData *data) override {
+        this->data = data;
         return retry(&MqttControlCenter::publishInternal, 10, "mqtt client publish call");
     }
 
@@ -103,7 +83,7 @@ public:
     }
 
     boolean publishInternal() {
-        return publisher.publish(topic, controllerId, sensorId, temperature, humidity, mass, voltage);
+        return publisher.publish(data);
     }
 
     boolean retry(boolean(MqttControlCenter::*callback)(), int retryCount, const char *description) {

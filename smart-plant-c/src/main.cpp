@@ -4,13 +4,17 @@ extern "C" {
 
 #include "MqttControlCenter.cpp"
 #include "DhtTemperatureSensor.cpp"
-#include "ConnectorWifiOTA.cpp"
+//#include "ConnectorWifiOTA.cpp"
+#include "ConnectorWifi.cpp"
 #include "HX711.h"
+#include "Wire.h"
+#include "FDC1004.h"
 
-#define PIN_DOUT            D2
-#define PIN_CLK             D3
-#define PIN_BUTTON          D5
-#define PIN_TEMPERATURE     D6
+#define PIN_DOUT            D7
+#define PIN_CLK             D8
+
+#define PIN_BUTTON          D7
+#define PIN_TEMPERATURE     D3
 
 ADC_MODE(ADC_VCC);
 
@@ -30,13 +34,15 @@ const char *mqttPassword = "yourpassword";
 char *mqttPubBase = (char *) "/devices";
 char *mqttSubBase = (char *) "/control";
 
-float calibration_factor = -89070;
+float calibration_factor = 1;
 IConnector *connector;
 IControlCenter *center;
 DhtTemperatureSensor *temperatureSensor;
 HX711 *massSensor;
-
 uint32_t lastPublishTime = 0;
+CenterData data;
+double caps[] = {0, 0, 0, 0};
+uint8_t capdacs[] = {0, 0, 0, 0};
 
 char *readMac(char *toRead) {
     uint8_t mac[6];
@@ -46,20 +52,24 @@ char *readMac(char *toRead) {
 }
 
 void setup() {
-    pinMode(BUILTIN_LED, OUTPUT);
-    pinMode(PIN_BUTTON, INPUT);
-    digitalWrite(BUILTIN_LED, HIGH);
+    Wire.begin();
+//    pinMode(PIN_BUTTON, INPUT);
+//    pinMode(BUILTIN_LED, OUTPUT);
+//    digitalWrite(BUILTIN_LED, HIGH);
     Serial.begin(115200);
-//
-//    while (!Serial) {
-//        ; // wait for serial port to connect. Needed for native USB
-//    }
-//    delay(1000);
     Serial.println("Start: ");
-    Serial.print("ESP.getFreeSketchSpace(): ");
-    Serial.println(ESP.getFreeSketchSpace());
+    uint8_t initRet = FDC1004_init();
+    if (initRet) {
+        Serial.printf("FDC1004 init failed: %d\n", initRet);
+    }
+
+    data.caps = caps;
+    data.capdacs = capdacs;
+    data.baseTopic = mqttPubBase;
+    data.controllerId = macAddress;
+    data.sensorId = const_cast<char *>("m1");
 //    try {
-        connector = new ConnectorWifiOTA(ssid, password);
+        connector = new ConnectorWifi(ssid, password);
         center = new MqttControlCenter(readMac(macAddress), mqttServer, 1883, mqttUsername, mqttPassword, connector);
         temperatureSensor = new DhtTemperatureSensor(PIN_TEMPERATURE, DHT22, (char *) "dht22");
         massSensor = new HX711(PIN_DOUT, PIN_CLK);
@@ -84,27 +94,31 @@ void loop() {
         float mass = massSensor->get_units(10);
         ITemperatureResult &temperatureResult = temperatureSensor->read();
 
-        String pubStatus = String("Publish status: ");
-        boolean status = center->publish(mqttPubBase,
-                                         macAddress,
-                                         const_cast<char *>("mass"),
-                                         temperatureResult.getTemperature(),
-                                         temperatureResult.getHumidity(),
-                                         mass,
-                                         voltage);
-        pubStatus += String(status);
+//        memset(caps, 0, sizeof(caps));
+        for (uint8_t i = 0; i < 4; ++i) {
+            FDC1004_measure_channel(i, &(caps[i]), &(capdacs[i]));
+            Serial.printf(", channel %d|%f|%d\t", i, caps[i], capdacs[i]);
+        }
+
+        data.temperature = temperatureResult.getTemperature();
+        data.humidity = temperatureResult.getHumidity();
+        data.mass = mass;
+        data.voltage = voltage;
+//        String pubStatus = String("Publish status: ");
+        boolean status = center->publish(&data);
+//        pubStatus += String(status);
         boolean loopStatus = center->loop();
-        Serial.println(pubStatus + String(", overall: ") + String(loopStatus));
+//        Serial.println(pubStatus + String(", overall: ") + String(loopStatus));
         lastPublishTime = millis();
     } else {
         center->loop();
-        int buttonStatus = digitalRead(D5);
-        if (HIGH == buttonStatus) {
-            Serial.print("Reset tare. ");
-            Serial.println(buttonStatus);
-            lastPublishTime = 0;
-            massSensor->tare(10);
-        }
+//        int buttonStatus = digitalRead(D5);
+//        if (HIGH == buttonStatus) {
+//            Serial.print("Reset tare. ");
+//            Serial.println(buttonStatus);
+//            lastPublishTime = 0;
+//            massSensor->tare(10);
+//        }
     }
     connector->loop();
 }
