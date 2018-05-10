@@ -1,0 +1,1 @@
+platformio platform install https://github.com/platformio/platform-atmelavr.git --with-package=tool-avrdude

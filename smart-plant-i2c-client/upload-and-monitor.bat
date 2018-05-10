@@ -1,0 +1,1 @@
+platformio run -t upload && platformio serialports monitor --baud 115200
