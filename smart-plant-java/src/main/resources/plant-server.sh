@@ -35,5 +35,11 @@ MOQUETTE_PATH=$MOQUETTE_HOME/
 #LOG_FILE_LEVEL=fine
 JAVA_OPTS_SCRIPT="-XX:+HeapDumpOnOutOfMemoryError -Djava.awt.headless=true"
 
-$JAVA -server $JAVA_OPTS $JAVA_OPTS_SCRIPT -Dlog4j.configuration="file:$LOG_FILE" -Dmoquette.path="$MOQUETTE_PATH" -cp "$MOQUETTE_HOME:$MOQUETTE_HOME/lib/*" com.smartplant.PlantMqttEntryPoint config/plant-mqtt-server.properties
+# make sure java quit when script is killed
+trap 'echo "terminating $child"; kill -9 $child; wait $child' TERM
 
+$JAVA -server $JAVA_OPTS $JAVA_OPTS_SCRIPT -Dlog4j.configuration="file:$LOG_FILE" -Dmoquette.path="$MOQUETTE_PATH" -cp "$MOQUETTE_HOME:$MOQUETTE_HOME/lib/*" com.smartplant.PlantMqttEntryPoint config/plant-mqtt-server.properties &
+
+child=$!
+echo $child > $PRGDIR/proc.pid
+wait "$child"
